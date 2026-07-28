@@ -17,9 +17,6 @@ class Database:
         async with self._session_factory() as session, session.begin():
             yield session
 
-    async def dispose(self) -> None:
-        await self._engine.dispose()
-
 
 _database: Database | None = None
 
