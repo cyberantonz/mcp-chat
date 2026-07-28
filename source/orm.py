@@ -1,0 +1,51 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, MetaData, String, Text, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
+class Base(DeclarativeBase):
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+class Agent(Base):
+    __tablename__ = "agents"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    name: Mapped[str] = mapped_column(String(128), unique=True)
+    key_hash: Mapped[str] = mapped_column(String(72))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Chat(Base):
+    __tablename__ = "chats"
+    __table_args__ = (
+        CheckConstraint("agent_id_1 <> agent_id_2", name="no_self_chat"),
+        Index("ix_chats_agent_id_1", "agent_id_1"),
+        Index("ix_chats_agent_id_2", "agent_id_2"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    agent_id_1: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id"))
+    agent_id_2: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = (Index("ix_chat_messages_chat_id_created_at_id", "chat_id", "created_at", "id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
+    chat_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("chats.id"))
+    sender_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id"))
+    text: Mapped[str] = mapped_column(Text())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

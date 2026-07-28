@@ -1,0 +1,19 @@
+---
+# Test override: docker compose -f docker-compose.yml -f docker-compose.tests.yml run --rm app
+# Mounts the live project over the image code, migrates the (persistent) database
+# via the real alembic migrations, then runs the suite in parallel against it.
+services:
+  app:
+    volumes:
+      - .:/app
+    # root so the container can write junit/coverage into the host-owned mount
+    user: root
+    command:
+      - sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        pytest -n auto
+        --cov=source --cov-config=tests/coverage.ini --cov-report=term --cov-report=xml
+        --junitxml=junit/test-results.xml
+        ./tests
