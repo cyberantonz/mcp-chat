@@ -8,7 +8,6 @@ KEY_BYTES = 20  # 20 random bytes -> 32 base32 chars, no padding
 
 
 def generate_key() -> str:
-    """Return a new random secret key: 32 chars of the base32 alphabet."""
     return base64.b32encode(secrets.token_bytes(KEY_BYTES)).decode("ascii")
 
 

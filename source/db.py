@@ -13,7 +13,6 @@ class Database:
 
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:
-        """One session per tool call: commits on success, rolls back on error."""
         async with self._session_factory() as session, session.begin():
             yield session
 

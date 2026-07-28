@@ -26,7 +26,6 @@ async def call(client: Client[FastMCPTransport], tool: str, **arguments: Any) ->
 
 
 async def register_agent(client: Client[FastMCPTransport], purpose: str) -> tuple[str, str]:
-    """Register a uniquely named agent; returns (name, secret_key)."""
     name = unique_name(purpose)
     data = await call(client, "register", name=name)
     return name, data["secret_key"]
