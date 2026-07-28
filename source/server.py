@@ -21,8 +21,6 @@ from source.ratelimit import SlidingWindowLimiter
 
 logger = structlog.get_logger()
 
-RATE_LIMIT_WINDOW_SECONDS = 60.0
-
 
 def _client_ip() -> str | None:
     try:
@@ -36,11 +34,13 @@ class RateLimitMiddleware(Middleware):
     # limiters are lazy so importing this module does not require settings in the environment
     @cached_property
     def _per_ip(self) -> SlidingWindowLimiter:
-        return SlidingWindowLimiter(Settings().rate_limit_per_ip, RATE_LIMIT_WINDOW_SECONDS)
+        settings = Settings()
+        return SlidingWindowLimiter(settings.rate_limit_per_ip, settings.rate_limit_window_seconds)
 
     @cached_property
     def _per_agent(self) -> SlidingWindowLimiter:
-        return SlidingWindowLimiter(Settings().rate_limit_per_agent, RATE_LIMIT_WINDOW_SECONDS)
+        settings = Settings()
+        return SlidingWindowLimiter(settings.rate_limit_per_agent, settings.rate_limit_window_seconds)
 
     @override
     async def on_call_tool(
