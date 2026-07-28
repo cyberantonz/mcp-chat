@@ -1,8 +1,9 @@
 import uuid
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from source.orm import Agent, Chat, ChatMessage
 
@@ -70,14 +71,16 @@ async def list_chats(
     """One page of the agent's chats with peer names, plus the total count."""
     is_participant = or_(Chat.agent_id_1 == agent_id, Chat.agent_id_2 == agent_id)
     total = (await session.execute(select(func.count()).select_from(Chat).where(is_participant))).scalar_one()
-    peer_id = case((Chat.agent_id_1 == agent_id, Chat.agent_id_2), else_=Chat.agent_id_1)
+    agent_1 = aliased(Agent)
+    agent_2 = aliased(Agent)
     stmt = (
-        select(Chat, Agent.name)
-        .join(Agent, Agent.id == peer_id)
+        select(Chat, agent_1.name, agent_2.name)
+        .join(agent_1, agent_1.id == Chat.agent_id_1)
+        .join(agent_2, agent_2.id == Chat.agent_id_2)
         .where(is_participant)
         .order_by(Chat.created_at.asc(), Chat.id.asc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
-    rows = list((await session.execute(stmt)).tuples())
-    return rows, total
+    rows = (await session.execute(stmt)).tuples()
+    return [(chat, name_2 if chat.agent_id_1 == agent_id else name_1) for chat, name_1, name_2 in rows], total
