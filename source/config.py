@@ -9,3 +9,9 @@ class Settings(BaseSettings):
     host: str
     port: int
     log_level: str
+    rate_limit_per_ip: int
+    rate_limit_per_agent: int
+    rate_limit_window_seconds: float
+
+
+SETTINGS = Settings()

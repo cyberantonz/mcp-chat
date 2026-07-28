@@ -5,7 +5,7 @@ from alembic import context
 from sqlalchemy import Connection, pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from source.config import Settings
+from source.config import SETTINGS
 from source.orm import Base
 
 config = context.config
@@ -16,7 +16,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # single source of configuration: the same env vars the app itself uses
-config.set_main_option("sqlalchemy.url", Settings().database_url.unicode_string().replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", SETTINGS.database_url.unicode_string().replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

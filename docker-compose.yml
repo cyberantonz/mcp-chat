@@ -26,6 +26,9 @@ services:
       HOST: 0.0.0.0
       PORT: 8000
       LOG_LEVEL: INFO
+      RATE_LIMIT_PER_IP: 30
+      RATE_LIMIT_PER_AGENT: 60
+      RATE_LIMIT_WINDOW_SECONDS: 60
     ports:
       - "8000:8000"
 
