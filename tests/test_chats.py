@@ -64,6 +64,14 @@ async def test_list_chats_shows_peer_name_for_both_sides(client: Client[FastMCPT
     assert "created_at" in seen_by_a["chats"][0]
 
 
+async def test_list_chats_page_past_the_end_keeps_total(client: Client[FastMCPTransport]) -> None:
+    name_a, key_a = await register_agent(client, "pastend-a")
+    name_b, _ = await register_agent(client, "pastend-b")
+    await call(client, "create_chat", agent_name=name_a, secret_key=key_a, peer_name=name_b)
+    data = await call(client, "list_chats", agent_name=name_a, secret_key=key_a, page=5, page_size=50)
+    assert data == {"chats": [], "total": 1}
+
+
 async def test_list_chats_empty(client: Client[FastMCPTransport]) -> None:
     name, key = await register_agent(client, "lonely")
     data = await call(client, "list_chats", agent_name=name, secret_key=key)

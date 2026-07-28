@@ -70,11 +70,12 @@ async def list_chats(
 ) -> tuple[list[tuple[Chat, str]], int]:
     """One page of the agent's chats with peer names, plus the total count."""
     is_participant = or_(Chat.agent_id_1 == agent_id, Chat.agent_id_2 == agent_id)
-    total = (await session.execute(select(func.count()).select_from(Chat).where(is_participant))).scalar_one()
     agent_1 = aliased(Agent)
     agent_2 = aliased(Agent)
+    # count(*) OVER () is evaluated on the filtered set before LIMIT/OFFSET:
+    # one statement, one snapshot - the total cannot drift from the page
     stmt = (
-        select(Chat, agent_1.name, agent_2.name)
+        select(Chat, agent_1.name, agent_2.name, func.count().over())
         .join(agent_1, agent_1.id == Chat.agent_id_1)
         .join(agent_2, agent_2.id == Chat.agent_id_2)
         .where(is_participant)
@@ -82,5 +83,12 @@ async def list_chats(
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
-    rows = (await session.execute(stmt)).tuples()
-    return [(chat, name_2 if chat.agent_id_1 == agent_id else name_1) for chat, name_1, name_2 in rows], total
+    rows = list((await session.execute(stmt)).tuples())
+    if rows:
+        total = rows[0][3]
+    elif page == 1:
+        total = 0
+    else:  # page past the end: no rows to carry the window count
+        total = (await session.execute(select(func.count()).select_from(Chat).where(is_participant))).scalar_one()
+    chats = [(chat, name_2 if chat.agent_id_1 == agent_id else name_1) for chat, name_1, name_2, _ in rows]
+    return chats, total
