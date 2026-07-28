@@ -1,8 +1,3 @@
-"""Database queries. All functions expect an open session and flush eagerly
-
-so constraint violations surface here, not at commit time.
-"""
-
 import uuid
 
 from sqlalchemy import case, func, or_, select

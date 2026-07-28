@@ -1,5 +1,3 @@
-"""Alembic environment: async engine, metadata from source.orm, DSN from settings."""
-
 import asyncio
 from logging.config import fileConfig
 

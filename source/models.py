@@ -1,8 +1,3 @@
-"""Pydantic models and shared parameter types for the MCP tools.
-
-These define the exact JSON schemas MCP clients see (see DESIGN.md).
-"""
-
 from datetime import datetime
 from typing import Annotated
 

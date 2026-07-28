@@ -1,12 +1,3 @@
-"""Shared fixtures: in-memory MCP client over the real server and real database.
-
-Isolation model (see DESIGN.md): all tests share one persistent, migrated
-database. Every test registers its own agents under unique names, and data is
-only reachable through its owners' credentials, so tests cannot observe each
-other - including tests from previous runs and parallel xdist workers. Never
-assert on global state, only on state owned by agents the test created.
-"""
-
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any

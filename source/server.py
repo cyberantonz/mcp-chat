@@ -1,5 +1,3 @@
-"""FastMCP server exposing the agent chat tools."""
-
 import uuid
 from typing import Annotated
 

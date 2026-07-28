@@ -1,5 +1,3 @@
-"""Async engine and session lifecycle."""
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 

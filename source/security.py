@@ -1,9 +1,3 @@
-"""Secret key generation and bcrypt hashing/verification.
-
-bcrypt is CPU-bound (~50-100 ms per operation by design), so the async
-wrappers run it in a worker thread to keep the event loop responsive.
-"""
-
 import asyncio
 import base64
 import secrets
@@ -29,6 +23,7 @@ def _verify_key(key: str, key_hash: str) -> bool:
         return False
 
 
+# bcrypt is CPU-bound (~50-100 ms by design): keep it off the event loop
 async def hash_key(key: str) -> str:
     return await asyncio.to_thread(_hash_key, key)
 
