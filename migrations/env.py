@@ -16,7 +16,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # single source of configuration: the same env vars the app itself uses
-config.set_main_option("sqlalchemy.url", str(Settings().database_url).replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", Settings().database_url.unicode_string().replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

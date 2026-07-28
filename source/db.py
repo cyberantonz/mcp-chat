@@ -23,5 +23,5 @@ _database: Database | None = None
 def get_database() -> Database:
     global _database  # noqa: PLW0603
     if _database is None:
-        _database = Database(str(Settings().database_url))
+        _database = Database(Settings().database_url.unicode_string())
     return _database
