@@ -8,22 +8,23 @@ class SlidingWindowLimiter:
     """Exact sliding-window log: per key, at most `limit` events per `window_seconds`."""
 
     def __init__(self, limit: int, window_seconds: float) -> None:
-        self._limit = limit
-        self._window = window_seconds
+        self.limit = limit
+        self.window_seconds = window_seconds
         self._events: dict[str, deque[float]] = {}
         self._calls_until_sweep = SWEEP_EVERY_CALLS
 
-    def allow(self, key: str) -> bool:
+    def acquire(self, key: str) -> float | None:
+        """None if the request is allowed; otherwise seconds until a slot frees."""
         now = time.monotonic()
-        cutoff = now - self._window
+        cutoff = now - self.window_seconds
         events = self._events.setdefault(key, deque())
         while events and events[0] <= cutoff:
             events.popleft()
         self._sweep(cutoff)
-        if len(events) >= self._limit:
-            return False
+        if len(events) >= self.limit:
+            return events[0] - cutoff
         events.append(now)
-        return True
+        return None
 
     def _sweep(self, cutoff: float) -> None:
         """Drop idle keys periodically so key-rotating clients cannot grow memory forever."""

@@ -11,7 +11,7 @@ from mcp.types import CallToolRequestParams
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from source import models, repository, security
+from source import errors, models, repository, security
 from source.config import SETTINGS
 from source.db import get_database
 from source.log import configure_logging
@@ -40,26 +40,24 @@ class RateLimitMiddleware(Middleware):
         self, context: MiddlewareContext[CallToolRequestParams], call_next: CallNext[CallToolRequestParams, ToolResult]
     ) -> ToolResult:
         ip = _client_ip()
-        if ip is not None and not self._per_ip.allow(ip):
+        if ip is not None and (retry_after := self._per_ip.acquire(ip)) is not None:
             await logger.awarning("rate_limited", key_type="ip", ip=ip, tool=context.message.name)
-            raise ToolError(RATE_LIMITED)
+            raise ToolError(
+                errors.rate_limited("from your address", self._per_ip.limit, self._per_ip.window_seconds, retry_after)
+            )
         arguments = context.message.arguments or {}
         agent_name = arguments.get("agent_name") or arguments.get("name")
-        if isinstance(agent_name, str) and not self._per_agent.allow(agent_name):
+        if isinstance(agent_name, str) and (retry_after := self._per_agent.acquire(agent_name)) is not None:
             await logger.awarning("rate_limited", key_type="agent", agent=agent_name, tool=context.message.name)
-            raise ToolError(RATE_LIMITED)
+            raise ToolError(
+                errors.rate_limited(
+                    f"for agent '{agent_name}'", self._per_agent.limit, self._per_agent.window_seconds, retry_after
+                )
+            )
         return await call_next(context)
 
 
 rate_limiter = RateLimitMiddleware()
-
-AUTH_FAILED = "auth_failed"
-AGENT_NAME_TAKEN = "agent_name_taken"
-AGENT_NOT_FOUND = "agent_not_found"
-CHAT_NOT_FOUND = "chat_not_found"
-INVALID_CHAT_ID = "invalid_chat_id"
-SELF_CHAT_FORBIDDEN = "self_chat_forbidden"
-RATE_LIMITED = "rate_limited"
 
 mcp = FastMCP(
     "agents-chat",
@@ -81,10 +79,10 @@ async def _authenticate(session: AsyncSession, agent_name: str, secret_key: str)
         # indistinguishable from wrong keys, by timing too
         await security.verify_key(secret_key, security.DUMMY_KEY_HASH)
         await logger.awarning("auth_failed", agent=agent_name)
-        raise ToolError(AUTH_FAILED)
+        raise ToolError(errors.AUTH_FAILED)
     if not await security.verify_key(secret_key, agent.key_hash):
         await logger.awarning("auth_failed", agent=agent_name)
-        raise ToolError(AUTH_FAILED)
+        raise ToolError(errors.AUTH_FAILED)
     return agent
 
 
@@ -92,7 +90,7 @@ def _parse_chat_id(chat_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(hex=chat_id)
     except ValueError as exc:
-        raise ToolError(INVALID_CHAT_ID) from exc
+        raise ToolError(errors.invalid_chat_id(chat_id)) from exc
 
 
 async def _get_member_chat(session: AsyncSession, caller: Agent, chat_id: str) -> Chat:
@@ -103,7 +101,7 @@ async def _get_member_chat(session: AsyncSession, caller: Agent, chat_id: str) -
     """
     chat = await repository.get_chat(session, _parse_chat_id(chat_id))
     if chat is None or caller.id not in (chat.agent_id_1, chat.agent_id_2):
-        raise ToolError(CHAT_NOT_FOUND)
+        raise ToolError(errors.chat_not_found(chat_id))
     return chat
 
 
@@ -121,7 +119,7 @@ async def register(name: models.AgentName) -> models.RegisterResponse:
             agent = await repository.create_agent(session, name, key_hash)
             agent_id = agent.id
     except repository.AgentNameTakenError as exc:
-        raise ToolError(AGENT_NAME_TAKEN) from exc
+        raise ToolError(errors.agent_name_taken(name)) from exc
     await logger.ainfo("agent_registered", agent=name, agent_id=agent_id.hex)
     return models.RegisterResponse(agent_id=agent_id.hex, secret_key=key)
 
@@ -141,9 +139,9 @@ async def create_chat(
         caller = await _authenticate(session, agent_name, secret_key)
         peer = await repository.get_agent_by_name(session, peer_name)
         if peer is None:
-            raise ToolError(AGENT_NOT_FOUND)
+            raise ToolError(errors.agent_not_found(peer_name))
         if peer.id == caller.id:
-            raise ToolError(SELF_CHAT_FORBIDDEN)
+            raise ToolError(errors.SELF_CHAT_FORBIDDEN)
         chat = await repository.create_chat(session, caller.id, peer.id)
         await logger.ainfo("chat_created", chat_id=chat.id.hex, creator=agent_name, peer=peer_name)
         return models.CreateChatResponse(chat_id=chat.id.hex)
