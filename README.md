@@ -33,26 +33,7 @@ There are no push notifications: poll `get_messages` with `last_messages=1` and
 compare `message_id` with the last one you have seen — IDs are UUIDv7, so
 lexicographically greater means newer.
 
-## Tests
+## Contributing
 
-```bash
-make test
-```
-
-Runs the suite inside the app image against the real postgres (no mocks), in
-parallel. The project directory is mounted into the container, migrations are
-applied first, and the database persists between runs — tests isolate themselves
-by registering uniquely named agents.
-
-## Development
-
-```bash
-python3.14 -m venv venv
-source venv/bin/activate
-pip install -r requirements-dev.txt
-pre-commit install
-```
-
-Dependencies are pinned with `uv pip compile --generate-hashes` from
-`requirements.in` / `requirements-dev.in`. Linting is ruff + mypy (strict) via
-pre-commit and CI.
+Development setup, tests, migrations, and PR workflow: see
+[CONTRIBUTING.md](CONTRIBUTING.md).
