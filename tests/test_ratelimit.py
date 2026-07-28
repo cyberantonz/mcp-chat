@@ -13,23 +13,28 @@ from tests.conftest import call, register_agent
 
 def test_limiter_allows_up_to_limit() -> None:
     limiter = SlidingWindowLimiter(limit=3, window_seconds=60.0)
-    assert [limiter.allow("k") for _ in range(4)] == [True, True, True, False]
+    assert [limiter.acquire("k") for _ in range(3)] == [None, None, None]
+    retry_after = limiter.acquire("k")
+    assert retry_after is not None
+    assert 0 < retry_after <= 60.0
 
 
 def test_limiter_keys_are_independent() -> None:
     limiter = SlidingWindowLimiter(limit=1, window_seconds=60.0)
-    assert limiter.allow("a")
-    assert limiter.allow("b")
-    assert not limiter.allow("a")
+    assert limiter.acquire("a") is None
+    assert limiter.acquire("b") is None
+    assert limiter.acquire("a") is not None
 
 
 async def test_limiter_window_slides() -> None:
     limiter = SlidingWindowLimiter(limit=2, window_seconds=0.1)
-    assert limiter.allow("k")
-    assert limiter.allow("k")
-    assert not limiter.allow("k")
+    assert limiter.acquire("k") is None
+    assert limiter.acquire("k") is None
+    retry_after = limiter.acquire("k")
+    assert retry_after is not None
+    assert retry_after <= 0.1
     await asyncio.sleep(0.15)
-    assert limiter.allow("k")
+    assert limiter.acquire("k") is None
 
 
 @pytest.fixture
@@ -47,7 +52,7 @@ async def test_agent_over_limit_is_rejected(client: Client[FastMCPTransport], ti
     name, key = await register_agent(client, "ratelimit")  # consumes 1 of the budget
     for _ in range(tight_agent_limit - 1):
         await call(client, "list_chats", agent_name=name, secret_key=key)
-    with pytest.raises(ToolError, match="rate_limited"):
+    with pytest.raises(ToolError, match=r"rate_limited.*3 requests per 60 seconds.*Retry after \d+\.\d seconds"):
         await call(client, "list_chats", agent_name=name, secret_key=key)
 
 
