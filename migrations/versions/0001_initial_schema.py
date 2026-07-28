@@ -51,6 +51,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("chat_messages")
-    op.drop_table("chats")
-    op.drop_table("agents")
+    raise NotImplementedError("No downgrades allowed. Only forward!")

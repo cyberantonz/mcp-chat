@@ -22,4 +22,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    ${downgrades if downgrades else "pass"}
+    raise NotImplementedError("No downgrades allowed. Only forward!")
