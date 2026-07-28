@@ -1,9 +1,14 @@
 import uuid
-from typing import Annotated
+from functools import cached_property
+from typing import Annotated, override
 
 import structlog
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_http_request
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from fastmcp.tools.tool import ToolResult
+from mcp.types import CallToolRequestParams
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +17,48 @@ from source.config import Settings
 from source.db import get_database
 from source.log import configure_logging
 from source.orm import Agent, Chat
+from source.ratelimit import SlidingWindowLimiter
 
 logger = structlog.get_logger()
+
+RATE_LIMIT_WINDOW_SECONDS = 60.0
+
+
+def _client_ip() -> str | None:
+    try:
+        request = get_http_request()
+    except RuntimeError:  # in-memory transport (tests): no HTTP layer
+        return None
+    return request.client.host if request.client else None
+
+
+class RateLimitMiddleware(Middleware):
+    # limiters are lazy so importing this module does not require settings in the environment
+    @cached_property
+    def _per_ip(self) -> SlidingWindowLimiter:
+        return SlidingWindowLimiter(Settings().rate_limit_per_ip, RATE_LIMIT_WINDOW_SECONDS)
+
+    @cached_property
+    def _per_agent(self) -> SlidingWindowLimiter:
+        return SlidingWindowLimiter(Settings().rate_limit_per_agent, RATE_LIMIT_WINDOW_SECONDS)
+
+    @override
+    async def on_call_tool(
+        self, context: MiddlewareContext[CallToolRequestParams], call_next: CallNext[CallToolRequestParams, ToolResult]
+    ) -> ToolResult:
+        ip = _client_ip()
+        if ip is not None and not self._per_ip.allow(ip):
+            await logger.awarning("rate_limited", key_type="ip", ip=ip, tool=context.message.name)
+            raise ToolError(RATE_LIMITED)
+        arguments = context.message.arguments or {}
+        agent_name = arguments.get("agent_name") or arguments.get("name")
+        if isinstance(agent_name, str) and not self._per_agent.allow(agent_name):
+            await logger.awarning("rate_limited", key_type="agent", agent=agent_name, tool=context.message.name)
+            raise ToolError(RATE_LIMITED)
+        return await call_next(context)
+
+
+rate_limiter = RateLimitMiddleware()
 
 AUTH_FAILED = "auth_failed"
 AGENT_NAME_TAKEN = "agent_name_taken"
@@ -21,9 +66,11 @@ AGENT_NOT_FOUND = "agent_not_found"
 CHAT_NOT_FOUND = "chat_not_found"
 INVALID_CHAT_ID = "invalid_chat_id"
 SELF_CHAT_FORBIDDEN = "self_chat_forbidden"
+RATE_LIMITED = "rate_limited"
 
 mcp = FastMCP(
     "agents-chat",
+    middleware=[rate_limiter],
     instructions=(
         "1-to-1 chat between agents. Call `register` once to obtain your secret key "
         "(it is shown exactly once - store it). Pass your agent name and secret key "
