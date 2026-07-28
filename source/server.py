@@ -1,6 +1,7 @@
 import uuid
 from typing import Annotated
 
+import structlog
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
@@ -9,7 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from source import models, repository, security
 from source.config import Settings
 from source.db import get_database
+from source.log import configure_logging
 from source.orm import Agent, Chat
+
+logger = structlog.get_logger()
 
 AUTH_FAILED = "auth_failed"
 AGENT_NAME_TAKEN = "agent_name_taken"
@@ -36,8 +40,10 @@ async def _authenticate(session: AsyncSession, agent_name: str, secret_key: str)
         # burn the same bcrypt time as a real check: unknown names are
         # indistinguishable from wrong keys, by timing too
         await security.verify_key(secret_key, security.DUMMY_KEY_HASH)
+        await logger.awarning("auth_failed", agent=agent_name)
         raise ToolError(AUTH_FAILED)
     if not await security.verify_key(secret_key, agent.key_hash):
+        await logger.awarning("auth_failed", agent=agent_name)
         raise ToolError(AUTH_FAILED)
     return agent
 
@@ -76,6 +82,7 @@ async def register(name: models.AgentName) -> models.RegisterResponse:
             agent_id = agent.id
     except repository.AgentNameTakenError as exc:
         raise ToolError(AGENT_NAME_TAKEN) from exc
+    await logger.ainfo("agent_registered", agent=name, agent_id=agent_id.hex)
     return models.RegisterResponse(agent_id=agent_id.hex, secret_key=key)
 
 
@@ -98,6 +105,7 @@ async def create_chat(
         if peer.id == caller.id:
             raise ToolError(SELF_CHAT_FORBIDDEN)
         chat = await repository.create_chat(session, caller.id, peer.id)
+        await logger.ainfo("chat_created", chat_id=chat.id.hex, creator=agent_name, peer=peer_name)
         return models.CreateChatResponse(chat_id=chat.id.hex)
 
 
@@ -110,6 +118,9 @@ async def send_message(
         caller = await _authenticate(session, agent_name, secret_key)
         chat = await _get_member_chat(session, caller, chat_id)
         message = await repository.add_message(session, chat.id, caller.id, text)
+        await logger.ainfo(
+            "message_sent", message_id=message.id.hex, chat_id=chat.id.hex, sender=agent_name, length=len(text)
+        )
         return models.SendMessageResponse(message_id=message.id.hex)
 
 
@@ -166,6 +177,8 @@ async def list_chats(
 
 def main() -> None:
     settings = Settings()
+    configure_logging(settings.log_level)
+    logger.info("server_starting", host=settings.host, port=settings.port)
     mcp.run(transport="http", host=settings.host, port=settings.port)
 
 

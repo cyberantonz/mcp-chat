@@ -8,3 +8,4 @@ class Settings(BaseSettings):
     database_pool_max_overflow: int
     host: str
     port: int
+    log_level: str
