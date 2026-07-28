@@ -1,5 +1,4 @@
 import uuid
-from functools import cached_property
 from typing import Annotated, override
 
 import structlog
@@ -13,7 +12,7 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from source import models, repository, security
-from source.config import get_settings
+from source.config import SETTINGS
 from source.db import get_database
 from source.log import configure_logging
 from source.orm import Agent, Chat
@@ -31,16 +30,10 @@ def _client_ip() -> str | None:
 
 
 class RateLimitMiddleware(Middleware):
-    # limiters are lazy so importing this module does not require settings in the environment
-    @cached_property
-    def _per_ip(self) -> SlidingWindowLimiter:
-        settings = get_settings()
-        return SlidingWindowLimiter(settings.rate_limit_per_ip, settings.rate_limit_window_seconds)
-
-    @cached_property
-    def _per_agent(self) -> SlidingWindowLimiter:
-        settings = get_settings()
-        return SlidingWindowLimiter(settings.rate_limit_per_agent, settings.rate_limit_window_seconds)
+    def __init__(self) -> None:
+        super().__init__()
+        self._per_ip = SlidingWindowLimiter(SETTINGS.rate_limit_per_ip, SETTINGS.rate_limit_window_seconds)
+        self._per_agent = SlidingWindowLimiter(SETTINGS.rate_limit_per_agent, SETTINGS.rate_limit_window_seconds)
 
     @override
     async def on_call_tool(
@@ -223,10 +216,9 @@ async def list_chats(
 
 
 def main() -> None:
-    settings = get_settings()
-    configure_logging(settings.log_level)
-    logger.info("server_starting", host=settings.host, port=settings.port)
-    mcp.run(transport="http", host=settings.host, port=settings.port)
+    configure_logging(SETTINGS.log_level)
+    logger.info("server_starting", host=SETTINGS.host, port=SETTINGS.port)
+    mcp.run(transport="http", host=SETTINGS.host, port=SETTINGS.port)
 
 
 if __name__ == "__main__":
