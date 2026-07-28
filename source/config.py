@@ -4,5 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: PostgresDsn
+    database_pool_size: int
+    database_pool_max_overflow: int
     host: str
     port: int
