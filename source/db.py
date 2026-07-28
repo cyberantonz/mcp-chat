@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 
-from source.config import Settings
+from source.config import Settings, get_settings
 
 
 class Database:
@@ -31,5 +31,5 @@ _database: Database | None = None
 def get_database() -> Database:
     global _database  # noqa: PLW0603
     if _database is None:
-        _database = Database(Settings())
+        _database = Database(get_settings())
     return _database

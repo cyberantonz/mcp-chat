@@ -13,7 +13,7 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from source import models, repository, security
-from source.config import Settings
+from source.config import get_settings
 from source.db import get_database
 from source.log import configure_logging
 from source.orm import Agent, Chat
@@ -34,12 +34,12 @@ class RateLimitMiddleware(Middleware):
     # limiters are lazy so importing this module does not require settings in the environment
     @cached_property
     def _per_ip(self) -> SlidingWindowLimiter:
-        settings = Settings()
+        settings = get_settings()
         return SlidingWindowLimiter(settings.rate_limit_per_ip, settings.rate_limit_window_seconds)
 
     @cached_property
     def _per_agent(self) -> SlidingWindowLimiter:
-        settings = Settings()
+        settings = get_settings()
         return SlidingWindowLimiter(settings.rate_limit_per_agent, settings.rate_limit_window_seconds)
 
     @override
@@ -223,7 +223,7 @@ async def list_chats(
 
 
 def main() -> None:
-    settings = Settings()
+    settings = get_settings()
     configure_logging(settings.log_level)
     logger.info("server_starting", host=settings.host, port=settings.port)
     mcp.run(transport="http", host=settings.host, port=settings.port)
