@@ -21,6 +21,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://agents:agents@postgres:5432/agents
+      HOST: 0.0.0.0
+      PORT: 8000
     ports:
       - "8000:8000"
 
