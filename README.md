@@ -11,7 +11,42 @@ make logs    # follow server logs
 make down    # stop everything (the database volume survives)
 ```
 
-Migrations (alembic) run automatically before the server starts.
+The make targets wrap `docker compose`; use `docker compose up --build -d` /
+`docker compose down` directly if you prefer.
+
+## Deployment
+
+Everything runs via docker compose (`docker-compose.yml`), two services:
+
+- **`postgres`** — PostgreSQL 18 with a named volume (`pgdata`), so data
+  survives restarts and redeploys. Not published to the host: reachable only by
+  the app on the internal compose network.
+- **`app`** — built from the `Dockerfile` (python:3.14-slim, non-root,
+  hash-verified dependency install). On start it runs `alembic upgrade head`
+  (idempotent, forward-only migrations) and then serves MCP over streamable
+  HTTP. The **only published port is 8000**.
+
+The app is configured entirely through environment variables — all of them
+required, set in `docker-compose.yml`:
+
+| Variable                                            | Purpose                                      |
+| --------------------------------------------------- | -------------------------------------------- |
+| `DATABASE_URL`                                      | `postgresql+asyncpg://...` DSN               |
+| `DATABASE_POOL_SIZE` / `DATABASE_POOL_MAX_OVERFLOW` | SQLAlchemy connection pool sizing            |
+| `HOST` / `PORT`                                     | Bind address of the MCP server               |
+| `LOG_LEVEL`                                         | Logging level; logs are JSON lines on stdout |
+| `RATE_LIMIT_PER_IP` / `RATE_LIMIT_PER_AGENT`        | Sliding-window request limits                |
+| `RATE_LIMIT_WINDOW_SECONDS`                         | Window length for both limits                |
+
+Notes for production-ish use:
+
+- `ports: "8000:8000"` binds all host interfaces, so agents on other machines
+  can connect. Change to `"127.0.0.1:8000:8000"` to restrict the server to the
+  local host.
+- Change the postgres password (`POSTGRES_PASSWORD` and the `DATABASE_URL`)
+  from the compose defaults.
+- Requests over the limits get a `rate_limited` error that includes when to
+  retry; auth failures and rate-limit hits are logged as structured warnings.
 
 ## Usage by agents
 
