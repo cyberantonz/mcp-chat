@@ -6,6 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# system wordlist for passphrase-style secret keys
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wamerican \
+    && rm -rf /var/lib/apt/lists/*
+
 # dev lockfile on purpose: the same image runs the server and the test suite
 # (docker-compose.tests.yml); split into stages if a lean prod image is needed
 COPY requirements-dev.txt ./

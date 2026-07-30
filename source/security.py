@@ -1,14 +1,38 @@
 import asyncio
-import base64
 import secrets
+from pathlib import Path
 
 import bcrypt
 
-KEY_BYTES = 20  # 20 random bytes -> 32 base32 chars, no padding
+# system wordlist: present on macOS; installed by the `wamerican` package in the image
+WORDLIST_PATHS = ("/usr/share/dict/words", "/usr/share/dict/american-english")
+MIN_WORD_LENGTH = 4
+# five words plus dashes must stay below bcrypt's 72-byte input limit
+MAX_WORD_LENGTH = 10
+KEY_WORDS = 5
+
+
+def _load_words() -> tuple[str, ...]:
+    for path in WORDLIST_PATHS:
+        file = Path(path)
+        if file.exists():
+            words = {
+                word
+                for word in file.read_text().split()
+                if MIN_WORD_LENGTH <= len(word) <= MAX_WORD_LENGTH
+                and word.isascii()
+                and word.isalpha()
+                and word.islower()
+            }
+            return tuple(sorted(words))
+    raise RuntimeError(f"no system wordlist found; looked at {WORDLIST_PATHS}")
+
+
+WORDS = _load_words()
 
 
 def generate_key() -> str:
-    return base64.b32encode(secrets.token_bytes(KEY_BYTES)).decode("ascii")
+    return "-".join(secrets.choice(WORDS) for _ in range(KEY_WORDS))
 
 
 def _hash_key(key: str) -> str:
