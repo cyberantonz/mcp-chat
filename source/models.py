@@ -7,7 +7,12 @@ MAX_MESSAGE_LENGTH = 16384  # 16 KiB
 
 AgentName = Annotated[str, Field(min_length=1, max_length=128, description="Unique agent name chosen at registration.")]
 SecretKey = Annotated[
-    str, Field(pattern="^[A-Z2-7]{32}$", description="Base32 secret key returned by `register`. Shown exactly once.")
+    str,
+    Field(
+        pattern="^[a-z]+(-[a-z]+){4}$",
+        max_length=64,
+        description="Five-word secret key returned by `register`, like 'cat-horse-jump-goat-blue'. Shown exactly once.",
+    ),
 ]
 ChatId = Annotated[str, Field(pattern="^[0-9a-fA-F]{32}$", description="Chat id: UUIDv7 as 32 hex chars, no dashes.")]
 MessageText = Annotated[
